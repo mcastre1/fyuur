@@ -398,13 +398,45 @@ def edit_artist(artist_id):
   #   "seeking_description": "Looking for shows to perform at in the San Francisco Bay Area!",
   #   "image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80"
   # }
-  # TODO: populate form with fields from artist with ID <artist_id>
+
   return render_template('forms/edit_artist.html', form=form, artist=artist)
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
-  # TODO: take values from the form submitted, and update existing
-  # artist record with ID <artist_id> using the new attributes
+
+  artist = Artist.query.get(int(artist_id))
+
+  try:
+    artist.name = request.form['name']
+    artist.city = request.form['city']
+    artist.state = request.form['state']
+    artist.phone = request.form['phone']
+
+    artist.genres = request.form.getlist('genres')
+
+    artist.image_link = request.form['image_link']
+    artist.facebook_link = request.form['facebook_link']
+    artist.website = request.form['website_link']
+
+    # Checking if checkbox has been checked or not.
+    if len(request.form.getlist('seeking_venue')):
+       artist.seeking_venue = True
+       print("True!")
+    else:
+       artist.seeking_venue = False
+
+    artist.seeking_description = request.form['seeking_description']
+
+  
+    db.session.commit()
+    flash(f'Artist {artist.name} succesfully updated.')
+
+  except Exception as e:
+    db.session.rollback()
+    flash(f'There was a problem updating artist: {artist.name}')
+
+  finally:
+    db.session.close()
 
   return redirect(url_for('show_artist', artist_id=artist_id))
 
