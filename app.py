@@ -255,6 +255,8 @@ def delete_venue(venue_id):
 @app.route('/artists')
 def artists():
   # TODO: replace with real data returned from querying the database
+  
+
   data=[{
     "id": 4,
     "name": "Guns N Petals",
@@ -265,7 +267,16 @@ def artists():
     "id": 6,
     "name": "The Wild Sax Band",
   }]
+
+  for artist in Artist.query.all():
+    data.append({
+      "id": int(artist.id),
+      "name": str(artist.name).title()
+    })
+
   return render_template('pages/artists.html', artists=data)
+
+
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
