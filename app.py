@@ -8,13 +8,14 @@ import babel
 from flask import Flask, render_template, request, Response, flash, redirect, url_for
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import inspect, func
+from sqlalchemy import inspect, func, select
 import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from flask_migrate import Migrate
 from forms import *
 from models import db, Venue, Artist
+from models import shows as Show
 
 #----------------------------------------------------------------------------#
 # App Config.
@@ -297,6 +298,11 @@ def create_venue_submission():
 
 
     newVenue.seeking_description = request.form['seeking_description']
+
+    newVenue.upcoming_shows = ""
+    newVenue.upcoming_shows_count = 0
+    newVenue.past_shows = ""
+    newVenue.past_shows_count = 0
 
 
     db.session.add(newVenue)
@@ -676,6 +682,10 @@ def create_artist_submission():
 
     newArtist.seeking_description = request.form['seeking_description']
 
+    newArtist.upcoming_shows = ""
+    newArtist.upcoming_shows_count = 0
+    newArtist.past_shows = ""
+    newArtist.past_shows_count = 0
   
     db.session.add(newArtist)
     db.session.commit()
@@ -751,9 +761,57 @@ def create_shows():
 def create_show_submission():
   # called to create new shows in the db, upon submitting new show listing form
   # TODO: insert form data as a new Show record in the db, instead
+  try:
+    venue_id = int(request.form["venue_id"])
+    artist_id = int(request.form["artist_id"])
+    start_time = request.form["start_time"]
 
-  # on successful db insert, flash success
-  flash('Show was successfully listed!')
+    query = Show.insert().values(venue_id = venue_id, artist_id = artist_id, start_time = start_time)
+    db.session.execute(query)
+
+    date = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+    now = datetime.now()
+
+    artist = Artist.query.get(artist_id)
+    venue = Venue.query.get(venue_id)
+
+    db.session.flush()
+
+    data = db.session.query(Show).all()[-1] #Getting the last "inserted" show.
+    show_id = data[0]
+
+    if date>now:
+      upcoming_shows = artist.upcoming_shows + "," + str(show_id)
+
+      artist.upcoming_shows = upcoming_shows
+      artist.upcoming_shows_count += 1
+
+      upcoming_shows = venue.upcoming_shows + "," + str(show_id)
+      venue.upcoming_shows = upcoming_shows
+      venue.upcoming_shows_count += 1
+    else:
+      past_shows = artist.past_shows + "," + str(show_id)
+
+      artist.past_shows = past_shows
+      artist.past_shows_count += 1
+
+      past_shows = venue.past_shows + "," + str(show_id)
+      venue.past_shows = past_shows
+      venue.past_shows_count += 1
+    
+    
+
+    db.session.commit()
+    flash('Show was successfully listed!')
+
+  except Exception as e:
+    print(e)
+    db.session.rollback()
+    flash('There was an error listing the show.')
+
+  finally:
+    db.session.close()
+  
   # TODO: on unsuccessful db insert, flash an error instead.
   # e.g., flash('An error occurred. Show could not be listed.')
   # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
