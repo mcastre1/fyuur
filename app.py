@@ -8,14 +8,14 @@ import babel
 from flask import Flask, render_template, request, Response, flash, redirect, url_for
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import inspect, func, select
+from sqlalchemy import inspect, func, select, delete
 import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from flask_migrate import Migrate
 from forms import *
 from models import db, Venue, Artist
-from models import shows as Show
+from models import Show
 
 #----------------------------------------------------------------------------#
 # App Config.
@@ -165,6 +165,7 @@ def show_venue(venue_id):
   # TODO: replace with real venue data from the venues table, using venue_id
 
   venue = Venue.query.get(int(venue_id))
+
   data = {
     "id": venue.id,
     "name": venue.name,
@@ -323,12 +324,22 @@ def create_venue_submission():
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
-  # TODO: Complete this endpoint for taking a venue_id, and using
-  # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
+  try:
+    venue = Venue.query.get(int(venue_id))
 
-  # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
-  # clicking that button delete it from the db then redirect the user to the homepage
-  return None
+    db.session.delete(venue)
+    db.session.commit()
+
+  except Exception as e:
+    db.session.rollback()
+    flash("There was an error deleting venue " + venue_id)
+    print(e)
+
+  finally:
+    db.session.close()
+
+  flash("Venue " + venue_id + " was succesfully deleted.")
+  return {'Success':True}
 
 #  Artists
 #  ----------------------------------------------------------------
@@ -643,8 +654,6 @@ def edit_venue_submission(venue_id):
   finally:
      db.session.close()
 
-  # TODO: take values from the form submitted, and update existing
-  # venue record with ID <venue_id> using the new attributes
   return redirect(url_for('show_venue', venue_id=venue_id))
 
 #  Create Artist
@@ -658,7 +667,6 @@ def create_artist_form():
 @app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
   # called upon submitting the new artist listing form
-  # TODO: insert form data as a new Venue record in the db, instead
   
   try:
     newArtist = Artist()
@@ -697,12 +705,6 @@ def create_artist_submission():
 
   finally:
     db.session.close()
-  # TODO: modify data to be the data object returned from db insertion
-
-  # on successful db insert, flash success
-  
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
   return render_template('pages/home.html')
 
 
@@ -712,7 +714,6 @@ def create_artist_submission():
 @app.route('/shows')
 def shows():
   # displays list of shows at /shows
-  # TODO: replace with real venues data.
   data=[{
     "venue_id": 1,
     "venue_name": "The Musical Hop",
@@ -749,6 +750,21 @@ def shows():
     "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
     "start_time": "2035-04-15T20:00:00.000Z"
   }]
+
+  print("hi!")
+  try:
+    for show in Show.query.all():
+      info = {"venue_id": show.venue.id,
+              "venue_name": show.venue.name,
+              "artist_id": show.artist.id,
+              "artist_name": show.artist.name,
+              "artist_image_link": show.artist.image_link,
+              "start_time": show.start_time}
+      data.append(info)
+      print(info)
+  except Exception as e:
+    print(e) 
+
   return render_template('pages/shows.html', shows=data)
 
 @app.route('/shows/create')
@@ -759,43 +775,50 @@ def create_shows():
 
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
-  # called to create new shows in the db, upon submitting new show listing form
-  # TODO: insert form data as a new Show record in the db, instead
   try:
     venue_id = int(request.form["venue_id"])
     artist_id = int(request.form["artist_id"])
     start_time = request.form["start_time"]
 
-    query = Show.insert().values(venue_id = venue_id, artist_id = artist_id, start_time = start_time)
-    db.session.execute(query)
+    #query = Show.insert().values(venue_id = venue_id, artist_id = artist_id, start_time = start_time)
+    #db.session.execute(query)
+    show = Show()
+    show.venue_id = venue_id
+    show.artist_id = artist_id
+    show.start_time = start_time
 
     date = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
     now = datetime.now()
 
+    # Referencing artist and venue from user input.
     artist = Artist.query.get(artist_id)
     venue = Venue.query.get(venue_id)
 
+
+    # Flush gives us the opportunity to reference the last added item to the db.
+    db.session.add(show)
     db.session.flush()
 
-    data = db.session.query(Show).all()[-1] #Getting the last "inserted" show.
-    show_id = data[0]
+    # data = db.session.query(Show).all()[-1] #Getting the last "inserted" show.
+    # show_id = data[0]
 
+    # Comparing starting date to make sure we update the correct column on db.
     if date>now:
-      upcoming_shows = artist.upcoming_shows + "," + str(show_id)
+      upcoming_shows = artist.upcoming_shows + "," + str(show.id)
 
       artist.upcoming_shows = upcoming_shows
       artist.upcoming_shows_count += 1
 
-      upcoming_shows = venue.upcoming_shows + "," + str(show_id)
+      upcoming_shows = venue.upcoming_shows + "," + str(show.id)
       venue.upcoming_shows = upcoming_shows
       venue.upcoming_shows_count += 1
     else:
-      past_shows = artist.past_shows + "," + str(show_id)
+      past_shows = artist.past_shows + "," + str(show.id)
 
       artist.past_shows = past_shows
       artist.past_shows_count += 1
 
-      past_shows = venue.past_shows + "," + str(show_id)
+      past_shows = venue.past_shows + "," + str(show.id)
       venue.past_shows = past_shows
       venue.past_shows_count += 1
     
@@ -807,14 +830,11 @@ def create_show_submission():
   except Exception as e:
     print(e)
     db.session.rollback()
-    flash('There was an error listing the show.')
+    flash('There was an error listing the show.\nMake sure you are entering an existing id for both Artist and Venue, and that the date has the correct format.')
 
   finally:
     db.session.close()
   
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Show could not be listed.')
-  # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
   return render_template('pages/home.html')
 
 @app.errorhandler(404)

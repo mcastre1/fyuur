@@ -3,12 +3,18 @@ from sqlalchemy import Identity
 
 db = SQLAlchemy()
 
-shows = db.Table('shows',
-                 db.Column('id', db.Integer, Identity(start=1), primary_key=True),
-                 db.Column('venue_id', db.Integer, db.ForeignKey('Venue.id'), primary_key=True),
-                 db.Column('artist_id', db.Integer, db.ForeignKey('Artist.id'), primary_key=True),
-                 db.Column('start_time', db.String)
-                 )
+# shows = db.Table('shows',
+#                  db.Column('id', db.Integer, Identity(start=1), primary_key=True),
+#                  db.Column('venue_id', db.Integer, db.ForeignKey('Venue.id'), primary_key=True),
+#                  db.Column('artist_id', db.Integer, db.ForeignKey('Artist.id'), primary_key=True),
+#                  db.Column('start_time', db.String)
+#                  )
+
+class Show(db.Model):
+    id = db.Column(db.Integer, primary_key = True)
+    venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'), nullable=False)
+    artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'), nullable=False)
+    start_time = db.Column(db.String, nullable=False)
 
 class Venue(db.Model):
     __tablename__ = 'Venue'
@@ -29,7 +35,7 @@ class Venue(db.Model):
     past_shows_count = db.Column(db.Integer)
     upcoming_shows = db.Column(db.String)
     upcoming_shows_count = db.Column(db.Integer)
-    artists = db.relationship('Artist', secondary=shows, backref=db.backref('venue', lazy=True))
+    shows = db.relationship('Show', backref='venue', lazy=True, cascade="all, delete")
 
 
 class Artist(db.Model):
@@ -50,3 +56,5 @@ class Artist(db.Model):
     past_shows_count = db.Column(db.Integer)
     upcoming_shows = db.Column(db.String)
     upcoming_shows_count = db.Column(db.Integer)
+    shows = db.relationship('Show', backref='artist', lazy=True, cascade="all, delete")
+    
